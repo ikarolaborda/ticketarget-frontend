@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { tokenIsAdmin } from '@/lib/jwt'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -9,5 +10,13 @@ export const router = createRouter({
     { path: '/auth', name: 'auth', component: () => import('@/views/AuthView.vue') },
     { path: '/my-tickets', name: 'my_tickets', component: () => import('@/views/MyTicketsView.vue') },
     { path: '/account', name: 'account', component: () => import('@/views/AccountView.vue') },
+    {
+      path: '/admin',
+      name: 'admin',
+      component: () => import('@/views/AdminView.vue'),
+      // UX-only gate on the persisted token's claim; every admin API call is
+      // re-verified server-side, so a spoofed claim only sees empty forms + 403s.
+      beforeEnter: () => (tokenIsAdmin(localStorage.getItem('ticketarget.token')) ? true : { name: 'browse' }),
+    },
   ],
 })

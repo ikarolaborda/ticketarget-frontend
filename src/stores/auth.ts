@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/api/client'
+import { tokenIsAdmin } from '@/lib/jwt'
 
 export interface AccountUser {
   id: string
   name: string
   email: string
+  is_admin: boolean
 }
 
 interface AuthResponse {
@@ -22,6 +24,12 @@ export const useAuthStore = defineStore('auth', () => {
   const loading = ref(false)
 
   const isAuthenticated = computed(() => user.value !== null)
+
+  // Before /auth/me hydration lands, fall back to the persisted token's claim
+  // so the admin nav/routes don't flash. UX only — the server is the gate.
+  const isAdmin = computed(() =>
+    user.value !== null ? user.value.is_admin === true : tokenIsAdmin(token.value),
+  )
 
   function storeSession(data: AuthResponse): void {
     token.value = data.token
@@ -99,7 +107,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(TOKEN_KEY)
   }
 
-  return { token, user, error, loading, isAuthenticated, register, login, restore, logout, updateProfile, updatePassword }
+  return { token, user, error, loading, isAuthenticated, isAdmin, register, login, restore, logout, updateProfile, updatePassword }
 })
 
 function extractMessage(e: unknown): string {

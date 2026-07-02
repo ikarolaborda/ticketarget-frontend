@@ -1,5 +1,6 @@
 /* ─── Design tokens ──────────────────────────────────────────────────────── */
 :root {
+  color-scheme: dark;
   --bg: #0b0d12;
   --bg-soft: #10131b;
   --card: #151823;
@@ -7,13 +8,26 @@
   --border: #232838;
   --border-strong: #303748;
   --accent: #7c6cf6;
+  --accent-2: #6a59e8;
   --accent-strong: #9385ff;
   --accent-soft: rgba(124, 108, 246, 0.12);
   --teal: #37d3b2;
+  --teal-soft: rgba(55, 211, 178, 0.12);
+  --teal-border: rgba(55, 211, 178, 0.35);
   --muted: #8b93a7;
   --text: #eef0f6;
   --danger: #ff7675;
+  --danger-soft: rgba(255, 118, 117, 0.12);
+  --danger-border: rgba(255, 118, 117, 0.4);
   --ok: #55efc4;
+  --ok-soft: rgba(85, 239, 196, 0.12);
+  --glow-a: rgba(124, 108, 246, 0.14);
+  --glow-b: rgba(55, 211, 178, 0.07);
+  --topbar-bg: rgba(11, 13, 18, 0.75);
+  /* The banner chip keeps its dark backdrop in BOTH themes: it sits on
+     saturated gradient art, not on the page background. */
+  --chip-bg: rgba(11, 13, 18, 0.72);
+  --chip-text: #eef0f6;
   --radius-s: 8px;
   --radius-m: 12px;
   --radius-l: 16px;
@@ -26,6 +40,36 @@
   --space-5: 2.5rem;
 }
 
+/* Same accent hues, lifted for a light surface; text/borders re-anchored. */
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f4f5fa;
+  --bg-soft: #eceef6;
+  --card: #ffffff;
+  --card-hover: #f4f4fb;
+  --border: #dfe3ef;
+  --border-strong: #c6cddf;
+  --accent: #6a58ee;
+  --accent-2: #5847d6;
+  --accent-strong: #5847d6;
+  --accent-soft: rgba(106, 88, 238, 0.12);
+  --teal: #0d9b81;
+  --teal-soft: rgba(13, 155, 129, 0.1);
+  --teal-border: rgba(13, 155, 129, 0.35);
+  --muted: #5c6374;
+  --text: #191c26;
+  --danger: #d64545;
+  --danger-soft: rgba(214, 69, 69, 0.1);
+  --danger-border: rgba(214, 69, 69, 0.35);
+  --ok: #0f9f6e;
+  --ok-soft: rgba(15, 159, 110, 0.12);
+  --glow-a: rgba(124, 108, 246, 0.1);
+  --glow-b: rgba(55, 211, 178, 0.08);
+  --topbar-bg: rgba(255, 255, 255, 0.75);
+  --shadow-1: 0 1px 2px rgba(23, 26, 40, 0.08);
+  --shadow-2: 0 10px 30px rgba(23, 26, 40, 0.12);
+}
+
 * { box-sizing: border-box; }
 
 html { scroll-behavior: smooth; }
@@ -34,8 +78,8 @@ body {
   margin: 0;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   background:
-    radial-gradient(1200px 500px at 70% -10%, rgba(124, 108, 246, 0.14), transparent 60%),
-    radial-gradient(900px 400px at 10% 0%, rgba(55, 211, 178, 0.07), transparent 55%),
+    radial-gradient(1200px 500px at 70% -10%, var(--glow-a), transparent 60%),
+    radial-gradient(900px 400px at 10% 0%, var(--glow-b), transparent 55%),
     var(--bg);
   color: var(--text);
   line-height: 1.55;
@@ -66,7 +110,7 @@ a { color: var(--accent-strong); }
   justify-content: space-between;
   align-items: center;
   padding: 0.85rem 2rem;
-  background: rgba(11, 13, 18, 0.75);
+  background: var(--topbar-bg);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border);
@@ -237,9 +281,9 @@ a { color: var(--accent-strong); }
 }
 
 .card-banner .chip {
-  background: rgba(11, 13, 18, 0.72);
+  background: var(--chip-bg);
   backdrop-filter: blur(6px);
-  color: var(--text);
+  color: var(--chip-text);
   font-size: 0.75rem;
   font-weight: 650;
   padding: 0.25rem 0.6rem;
@@ -438,7 +482,7 @@ a { color: var(--accent-strong); }
   font-size: 0.85rem;
   border-radius: 6px;
 }
-.line-item .remove:hover { color: var(--danger); background: rgba(255, 118, 117, 0.1); }
+.line-item .remove:hover { color: var(--danger); background: var(--danger-soft); }
 
 .panel-empty { color: var(--muted); font-size: 0.9rem; margin-bottom: var(--space-3); }
 
@@ -474,13 +518,13 @@ a { color: var(--accent-strong); }
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   color: var(--teal);
-  background: rgba(55, 211, 178, 0.1);
-  border: 1px solid rgba(55, 211, 178, 0.35);
+  background: var(--teal-soft);
+  border: 1px solid var(--teal-border);
   padding: 0.3rem 0.75rem;
   border-radius: 999px;
   font-size: 0.9rem;
 }
-.countdown.low { color: var(--danger); background: rgba(255, 118, 117, 0.1); border-color: rgba(255, 118, 117, 0.4); }
+.countdown.low { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-border); }
 
 .success-box { text-align: center; padding: var(--space-5) 0; }
 
@@ -489,7 +533,7 @@ a { color: var(--accent-strong); }
   height: 64px;
   margin: 0 auto var(--space-3);
   border-radius: 50%;
-  background: rgba(85, 239, 196, 0.12);
+  background: var(--ok-soft);
   border: 2px solid var(--ok);
   display: flex;
   align-items: center;
@@ -509,7 +553,7 @@ button {
   padding: 0.7rem 1.4rem;
   border-radius: var(--radius-m);
   border: none;
-  background: linear-gradient(135deg, var(--accent), #6a59e8);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: white;
   font-weight: 650;
   font-size: 0.95rem;
@@ -601,5 +645,49 @@ button.tab.active { background: var(--accent-soft); border-color: var(--accent);
 .qr-box { background: white; padding: 6px; border-radius: var(--radius-s); line-height: 0; flex-shrink: 0; }
 
 .status-chip { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.6rem; border-radius: 999px; }
-.status-chip.refunded { background: rgba(255, 118, 117, 0.15); color: var(--danger); }
-.status-chip.refund_pending { background: rgba(55, 211, 178, 0.12); color: var(--teal); }
+.status-chip.refunded { background: var(--danger-soft); color: var(--danger); }
+.status-chip.refund_pending { background: var(--teal-soft); color: var(--teal); }
+.status-chip.published { background: var(--ok-soft); color: var(--ok); }
+.status-chip.draft { background: var(--accent-soft); color: var(--accent-strong); }
+.status-chip.cancelled { background: var(--danger-soft); color: var(--danger); }
+
+/* ─── Theme toggle ───────────────────────────────────────────────────────── */
+button.theme-toggle {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+button.theme-toggle:hover:not(:disabled) { border-color: var(--accent); filter: none; }
+
+/* ─── Admin ──────────────────────────────────────────────────────────────── */
+.form select {
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-soft);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+.form select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
+
+.admin-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.admin-table th {
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border-strong);
+}
+.admin-table td { padding: 0.6rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.admin-table .row-actions { display: flex; gap: 0.85rem; justify-content: flex-end; white-space: nowrap; }
