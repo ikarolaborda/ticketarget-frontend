@@ -16,6 +16,7 @@ void auth.restore()
     </RouterLink>
     <nav class="top-actions">
       <template v-if="auth.user">
+        <RouterLink :to="{ name: 'my_tickets' }" class="signin">My tickets</RouterLink>
         <span class="account-name">Hi, {{ auth.user.name.split(' ')[0] }}</span>
         <button class="linklike" @click="auth.logout">Sign out</button>
       </template>
