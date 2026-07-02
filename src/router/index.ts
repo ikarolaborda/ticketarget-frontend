@@ -6,5 +6,6 @@ export const router = createRouter({
     { path: '/', name: 'browse', component: () => import('@/views/BrowseView.vue') },
     { path: '/events/:id', name: 'event', component: () => import('@/views/EventView.vue'), props: true },
     { path: '/checkout', name: 'checkout', component: () => import('@/views/CheckoutView.vue') },
+    { path: '/auth', name: 'auth', component: () => import('@/views/AuthView.vue') },
   ],
 })

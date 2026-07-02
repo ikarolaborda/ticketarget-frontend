@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import type { Ticket } from '@/types'
 
 interface Reservation {
@@ -17,8 +18,11 @@ const MIN_RETRY_SECONDS = 3
 const MAX_RETRY_SECONDS = 30
 
 export const useBookingStore = defineStore('booking', () => {
-  // A throwaway user id stands in for real auth in this reference build.
-  const userId = ref(crypto.randomUUID())
+  const auth = useAuthStore()
+  // Guests act under a throwaway id; account holders act under their user id
+  // (the backend also enforces token identity server-side).
+  const guestId = ref(crypto.randomUUID())
+  const userId = computed(() => auth.user?.id ?? guestId.value)
   const eventId = ref<string | null>(null)
   const selected = ref<Ticket[]>([])
   const reservation = ref<Reservation | null>(null)
@@ -121,7 +125,7 @@ export const useBookingStore = defineStore('booking', () => {
     }
   }
 
-  async function confirm(paymentToken: string): Promise<boolean> {
+  async function confirm(paymentToken: string, email: string | null = null): Promise<boolean> {
     if (reservation.value === null) return false
     error.value = null
     try {
@@ -129,6 +133,9 @@ export const useBookingStore = defineStore('booking', () => {
         reservation_id: reservation.value.reservation_id,
         user_id: userId.value,
         payment_token: paymentToken,
+        // Guests must say where the tickets go; account holders' email comes
+        // from the verified token server-side.
+        ...(email ? { email } : {}),
       })
       selected.value = []
       reservation.value = null

@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { useBookingStore } from '@/stores/booking'
 
 const booking = useBookingStore()
+const auth = useAuthStore()
 const router = useRouter()
 const done = ref(false)
 const paying = ref(false)
+const guestEmail = ref('')
+
+const emailValid = computed(
+  () => auth.isAuthenticated || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail.value.trim()),
+)
 const now = ref(Date.now())
 
 // The authoritative expiry comes from the reservation the API returned; the
@@ -32,12 +39,13 @@ const countdown = computed(() => {
 const expired = computed(() => secondsLeft.value !== null && secondsLeft.value <= 0)
 
 async function pay(): Promise<void> {
-  if (paying.value || expired.value) return
+  if (paying.value || expired.value || !emailValid.value) return
   paying.value = true
   try {
     // A real integration collects the token via Stripe.js Elements; here we pass
     // a test token so the booking flow is exercised end-to-end.
-    if (await booking.confirm('pm_card_visa')) {
+    const email = auth.isAuthenticated ? null : guestEmail.value.trim().toLowerCase()
+    if (await booking.confirm('pm_card_visa', email)) {
       done.value = true
       setTimeout(() => router.push({ name: 'browse' }), 2200)
     }
@@ -79,6 +87,26 @@ async function pay(): Promise<void> {
           <span class="amount">R$ {{ booking.total.toFixed(2) }}</span>
         </div>
 
+        <div v-if="!auth.isAuthenticated" class="form" style="margin-bottom: 1rem">
+          <label>
+            Email for your tickets
+            <input
+              v-model="guestEmail"
+              type="email"
+              required
+              placeholder="you@example.com"
+              autocomplete="email"
+            />
+          </label>
+          <p class="muted" style="margin: 0.25rem 0 0; font-size: 0.82rem">
+            We'll send the tickets here — no account needed.
+            <RouterLink :to="{ name: 'auth' }">Or sign in</RouterLink>
+          </p>
+        </div>
+        <p v-else class="muted" style="font-size: 0.88rem">
+          Tickets will be sent to <strong>{{ auth.user?.email }}</strong>
+        </p>
+
         <p v-if="countdown && !expired" class="muted">
           Seats held for
           <span class="countdown" :class="{ low: (secondsLeft ?? 0) < 60 }">⏱ {{ countdown }}</span>
@@ -88,7 +116,7 @@ async function pay(): Promise<void> {
           <RouterLink :to="{ name: 'browse' }">Pick seats again</RouterLink>
         </p>
 
-        <button class="btn-block" :disabled="paying || expired" @click="pay">
+        <button class="btn-block" :disabled="paying || expired || !emailValid" @click="pay">
           <span v-if="paying" class="spinner" aria-hidden="true"></span>
           {{ paying ? 'Processing…' : `Pay R$ ${booking.total.toFixed(2)}` }}
         </button>
