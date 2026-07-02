@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 
 interface TicketRow {
   ticket_code: string
+  status: 'paid' | 'refund_pending' | 'refunded'
   reservation_id: string
   seat: string | null
   type: string | null
@@ -44,6 +45,27 @@ function fmt(value: string | null, opts: Intl.DateTimeFormatOptions): string {
   return value ? new Date(value).toLocaleDateString(undefined, opts) : '—'
 }
 
+// The booking id is the first segment of the entry code (v1.<b64url(id)>.<sig>).
+function bookingIdOf(code: string): string {
+  return atob(code.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))
+}
+
+const refunding = ref<string | null>(null)
+
+async function requestRefund(t: TicketRow): Promise<void> {
+  if (!confirm('Request a refund for this ticket? The policy tier applies.')) return
+  refunding.value = t.ticket_code
+  try {
+    await api.post(`/booking/${bookingIdOf(t.ticket_code)}/refund`)
+    t.status = 'refund_pending'
+  } catch (e) {
+    const msg = (e as { response?: { data?: { message?: string } } }).response?.data?.message
+    alert(msg ?? 'The refund could not be processed.')
+  } finally {
+    refunding.value = null
+  }
+}
+
 // The QR encodes the public verification URL a gate scanner would open.
 function verifyUrl(code: string): string {
   return `${import.meta.env.VITE_API_BASE_URL}/booking/verify?code=${encodeURIComponent(code)}`
@@ -68,6 +90,9 @@ function verifyUrl(code: string): string {
       <div v-for="(t, i) in tickets" :key="t.reservation_id + i" class="panel" style="position: static">
         <div class="line-item">
           <strong>{{ t.event_name ?? 'Event' }}</strong>
+          <span v-if="t.status !== 'paid'" class="status-chip" :class="t.status">
+            {{ t.status === 'refunded' ? 'Refunded' : 'Refund pending' }}
+          </span>
           <span class="muted">{{ fmt(t.event_date, { day: 'numeric', month: 'short', year: 'numeric' }) }}</span>
         </div>
         <div class="line-item" style="margin-top: 0.5rem">
@@ -75,7 +100,7 @@ function verifyUrl(code: string): string {
           <span class="muted">{{ t.type ?? '' }}</span>
           <span>R$ {{ Number.parseFloat(t.amount).toFixed(2) }}</span>
         </div>
-        <div class="qr-row">
+        <div v-if="t.status === 'paid'" class="qr-row">
           <div class="qr-box">
             <QrcodeVue :value="verifyUrl(t.ticket_code)" :size="96" level="M" render-as="svg" />
           </div>
@@ -85,6 +110,18 @@ function verifyUrl(code: string): string {
             {{ t.reservation_id.slice(0, 8) }}<br />{{ t.charge_id }}
           </p>
         </div>
+        <button
+          v-if="t.status === 'paid'"
+          class="ghost"
+          style="margin-top: 0.75rem"
+          :disabled="refunding === t.ticket_code"
+          @click="requestRefund(t)"
+        >
+          {{ refunding === t.ticket_code ? 'Requesting…' : 'Request refund' }}
+        </button>
+        <p v-else-if="t.status === 'refund_pending'" class="muted" style="margin: 0.75rem 0 0; font-size: 0.82rem">
+          Refund in progress — money returns to your original payment method.
+        </p>
       </div>
     </div>
   </section>

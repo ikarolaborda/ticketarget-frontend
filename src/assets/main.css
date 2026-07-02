@@ -599,3 +599,7 @@ button.tab.active { background: var(--accent-soft); border-color: var(--accent);
 /* ─── Ticket QR ──────────────────────────────────────────────────────────── */
 .qr-row { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-3); }
 .qr-box { background: white; padding: 6px; border-radius: var(--radius-s); line-height: 0; flex-shrink: 0; }
+
+.status-chip { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.6rem; border-radius: 999px; }
+.status-chip.refunded { background: rgba(255, 118, 117, 0.15); color: var(--danger); }
+.status-chip.refund_pending { background: rgba(55, 211, 178, 0.12); color: var(--teal); }
