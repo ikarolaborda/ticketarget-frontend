@@ -62,13 +62,44 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function updateProfile(name: string, email: string): Promise<boolean> {
+    error.value = null
+    try {
+      const { data } = await api.put<{ token?: string; user: AccountUser }>('/auth/profile', {
+        name,
+        email,
+      })
+      user.value = data.user
+      // A claim change comes with a fresh token; a no-op does not.
+      if (data.token) {
+        token.value = data.token
+        localStorage.setItem(TOKEN_KEY, data.token)
+      }
+      return true
+    } catch (e) {
+      error.value = extractMessage(e)
+      return false
+    }
+  }
+
+  async function updatePassword(currentPassword: string, password: string): Promise<boolean> {
+    error.value = null
+    try {
+      await api.put('/auth/password', { current_password: currentPassword, password })
+      return true
+    } catch (e) {
+      error.value = extractMessage(e)
+      return false
+    }
+  }
+
   function logout(): void {
     token.value = null
     user.value = null
     localStorage.removeItem(TOKEN_KEY)
   }
 
-  return { token, user, error, loading, isAuthenticated, register, login, restore, logout }
+  return { token, user, error, loading, isAuthenticated, register, login, restore, logout, updateProfile, updatePassword }
 })
 
 function extractMessage(e: unknown): string {

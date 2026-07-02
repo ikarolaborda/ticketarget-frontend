@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import QrcodeVue from 'qrcode.vue'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 
 interface TicketRow {
+  ticket_code: string
   reservation_id: string
   seat: string | null
   type: string | null
@@ -41,6 +43,11 @@ onMounted(async () => {
 function fmt(value: string | null, opts: Intl.DateTimeFormatOptions): string {
   return value ? new Date(value).toLocaleDateString(undefined, opts) : '—'
 }
+
+// The QR encodes the public verification URL a gate scanner would open.
+function verifyUrl(code: string): string {
+  return `${import.meta.env.VITE_API_BASE_URL}/booking/verify?code=${encodeURIComponent(code)}`
+}
 </script>
 
 <template>
@@ -68,10 +75,16 @@ function fmt(value: string | null, opts: Intl.DateTimeFormatOptions): string {
           <span class="muted">{{ t.type ?? '' }}</span>
           <span>R$ {{ Number.parseFloat(t.amount).toFixed(2) }}</span>
         </div>
-        <p class="muted" style="font-size: 0.78rem; margin: 0.5rem 0 0">
-          Bought {{ fmt(t.purchased_at, { day: 'numeric', month: 'short' }) }} · ref
-          {{ t.reservation_id.slice(0, 8) }} · {{ t.charge_id }}
-        </p>
+        <div class="qr-row">
+          <div class="qr-box">
+            <QrcodeVue :value="verifyUrl(t.ticket_code)" :size="96" level="M" render-as="svg" />
+          </div>
+          <p class="muted" style="font-size: 0.78rem; margin: 0">
+            Show this QR at the venue entrance.<br />
+            Bought {{ fmt(t.purchased_at, { day: 'numeric', month: 'short' }) }} · ref
+            {{ t.reservation_id.slice(0, 8) }}<br />{{ t.charge_id }}
+          </p>
+        </div>
       </div>
     </div>
   </section>

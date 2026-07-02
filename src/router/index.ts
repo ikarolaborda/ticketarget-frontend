@@ -8,5 +8,6 @@ export const router = createRouter({
     { path: '/checkout', name: 'checkout', component: () => import('@/views/CheckoutView.vue') },
     { path: '/auth', name: 'auth', component: () => import('@/views/AuthView.vue') },
     { path: '/my-tickets', name: 'my_tickets', component: () => import('@/views/MyTicketsView.vue') },
+    { path: '/account', name: 'account', component: () => import('@/views/AccountView.vue') },
   ],
 })
