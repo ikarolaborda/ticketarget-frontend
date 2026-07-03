@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import type { Ticket } from '@/types'
@@ -10,6 +10,18 @@ interface Reservation {
   expires_at: string | null
 }
 
+interface ReservationDetail extends Reservation {
+  event_id: string | null
+  tickets: Ticket[]
+}
+
+interface CartSnapshot {
+  version: number
+  eventId: string | null
+  selected: Ticket[]
+  reservation: Reservation | null
+}
+
 type QueueStatus = 'idle' | 'waiting' | 'active'
 
 const MAX_QUEUE_ATTEMPTS = 30
@@ -17,11 +29,29 @@ const DEFAULT_RETRY_SECONDS = 10
 const MIN_RETRY_SECONDS = 3
 const MAX_RETRY_SECONDS = 30
 
+const GUEST_KEY = 'ticketarget.guest_id'
+const CART_KEY = 'ticketarget.cart'
+const CART_VERSION = 1
+
+// A stable guest identity is what lets a guest re-claim their reservation
+// after a refresh — the server matches on the reservation's user_id.
+function loadGuestId(): string {
+  try {
+    const stored = localStorage.getItem(GUEST_KEY)
+    if (stored && /^[0-9a-f-]{36}$/i.test(stored)) return stored
+    const fresh = crypto.randomUUID()
+    localStorage.setItem(GUEST_KEY, fresh)
+    return fresh
+  } catch {
+    return crypto.randomUUID()
+  }
+}
+
 export const useBookingStore = defineStore('booking', () => {
   const auth = useAuthStore()
-  // Guests act under a throwaway id; account holders act under their user id
-  // (the backend also enforces token identity server-side).
-  const guestId = ref(crypto.randomUUID())
+  // Guests act under a persisted throwaway id; account holders act under their
+  // user id (the backend also enforces token identity server-side).
+  const guestId = ref(loadGuestId())
   const userId = computed(() => auth.user?.id ?? guestId.value)
   const eventId = ref<string | null>(null)
   const selected = ref<Ticket[]>([])
@@ -29,8 +59,89 @@ export const useBookingStore = defineStore('booking', () => {
   const queueToken = ref<string | null>(null)
   const queueStatus = ref<QueueStatus>('idle')
   const retrySeconds = ref(0)
+  const restoring = ref(false)
   const error = ref<string | null>(null)
   let waitCancelled = false
+  // Persistence stays off until restore() has read the snapshot, so a fresh
+  // boot can't clobber a valid cart with empty transient state.
+  let persistEnabled = false
+
+  function persist(): void {
+    if (!persistEnabled) return
+    try {
+      const snapshot: CartSnapshot = {
+        version: CART_VERSION,
+        eventId: eventId.value,
+        selected: selected.value,
+        reservation: reservation.value,
+      }
+      localStorage.setItem(CART_KEY, JSON.stringify(snapshot))
+    } catch {
+      // Private mode / quota — the cart just won't survive a refresh.
+    }
+  }
+
+  watch([eventId, selected, reservation], persist, { deep: true })
+
+  // Rebuild the cart after a reload. The snapshot is only a pointer: whenever
+  // it references a reservation, the server's answer is the source of truth.
+  async function restore(): Promise<void> {
+    let snapshot: CartSnapshot | null = null
+    try {
+      const raw = localStorage.getItem(CART_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw) as CartSnapshot
+        if (parsed?.version === CART_VERSION) snapshot = parsed
+      }
+    } catch {
+      snapshot = null
+    }
+
+    if (!snapshot) {
+      persistEnabled = true
+      return
+    }
+
+    eventId.value = snapshot.eventId ?? null
+    selected.value = Array.isArray(snapshot.selected) ? snapshot.selected : []
+
+    const pointer = snapshot.reservation
+    if (!pointer?.reservation_id) {
+      persistEnabled = true
+      persist()
+      return
+    }
+
+    restoring.value = true
+    try {
+      const { data } = await api.get<ReservationDetail>(
+        `/booking/reservation/${pointer.reservation_id}`,
+        { params: { user_id: userId.value } },
+      )
+      if (data.status === 'held') {
+        reservation.value = {
+          reservation_id: data.reservation_id,
+          status: data.status,
+          expires_at: data.expires_at,
+        }
+        // Canonicalize the cart from the hold itself — local drift loses.
+        if (data.event_id) eventId.value = data.event_id
+        if (data.tickets.length > 0) selected.value = data.tickets
+      } else if (data.status === 'confirmed') {
+        selected.value = []
+        reservation.value = null
+      } else {
+        // Released: the seats are gone but the user's picks can be re-reserved.
+        reservation.value = null
+      }
+    } catch {
+      reservation.value = null
+    } finally {
+      restoring.value = false
+      persistEnabled = true
+      persist()
+    }
+  }
 
   const total = computed(() =>
     selected.value.reduce((sum, t) => sum + Number.parseFloat(t.price), 0),
@@ -148,6 +259,8 @@ export const useBookingStore = defineStore('booking', () => {
     }
   }
 
+  void restore()
+
   return {
     userId,
     eventId,
@@ -155,6 +268,7 @@ export const useBookingStore = defineStore('booking', () => {
     reservation,
     queueStatus,
     retrySeconds,
+    restoring,
     error,
     total,
     setEvent,

@@ -66,7 +66,12 @@ async function pay(): Promise<void> {
     <template v-else>
       <h1>Checkout</h1>
 
-      <div v-if="!booking.reservation" class="empty-state">
+      <div v-if="booking.restoring" class="center-row" role="status">
+        <span class="spinner" aria-hidden="true"></span>
+        Restoring your reservation…
+      </div>
+
+      <div v-else-if="!booking.reservation" class="empty-state">
         <span class="glyph" aria-hidden="true">🪑</span>
         <p>No active reservation.</p>
         <RouterLink :to="{ name: 'browse' }">Browse events and pick your seats</RouterLink>
