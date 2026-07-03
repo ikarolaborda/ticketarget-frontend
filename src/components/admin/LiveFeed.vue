@@ -6,7 +6,11 @@ import { formatMoney } from './types'
 const props = defineProps<{ rows: AdminBookingRow[] }>()
 
 const fresh = ref<Set<string>>(new Set())
-let known: Set<string> | null = null
+
+// Baseline = whatever was visible at first paint. When the component mounts
+// before the first poll resolves (empty rows), the first non-empty result
+// becomes the baseline instead, so the initial fill never flashes.
+let known: Set<string> | null = props.rows.length > 0 ? new Set(props.rows.map((r) => r.id)) : null
 
 // Highlight only rows that ARRIVED after the first paint — the initial load
 // must not flash the whole list.
