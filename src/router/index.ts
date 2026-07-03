@@ -11,7 +11,7 @@ export const router = createRouter({
     { path: '/my-tickets', name: 'my_tickets', component: () => import('@/views/MyTicketsView.vue') },
     { path: '/account', name: 'account', component: () => import('@/views/AccountView.vue') },
     {
-      path: '/admin',
+      path: '/admin/:section?',
       name: 'admin',
       component: () => import('@/views/AdminView.vue'),
       // UX-only gate on the persisted token's claim; every admin API call is

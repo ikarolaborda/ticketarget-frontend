@@ -1,7 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api/client'
 import type { EventDetail } from '@/types'
+import { usePoll } from '@/composables/usePoll'
+import StatTile from '@/components/admin/StatTile.vue'
+import RevenueChart from '@/components/admin/RevenueChart.vue'
+import SellThroughBar from '@/components/admin/SellThroughBar.vue'
+import SortableTable from '@/components/admin/SortableTable.vue'
+import LiveFeed from '@/components/admin/LiveFeed.vue'
+import type { AdminBookingRow, AdminStats } from '@/components/admin/types'
+import { formatMoney } from '@/components/admin/types'
 
 interface AdminVenue {
   id: string
@@ -11,29 +20,91 @@ interface AdminVenue {
   capacity: number
 }
 
-type Tab = 'venues' | 'events' | 'tickets' | 'manage'
+const SECTIONS = ['dashboard', 'bookings', 'venues', 'events', 'tickets', 'manage'] as const
+type Section = (typeof SECTIONS)[number]
 
-const tab = ref<Tab>('venues')
+const route = useRoute()
+const router = useRouter()
+
+const section = computed<Section>(() => {
+  const raw = String(route.params.section ?? 'dashboard')
+  return (SECTIONS as readonly string[]).includes(raw) ? (raw as Section) : 'dashboard'
+})
+
+function go(target: Section): void {
+  void router.push({ name: 'admin', params: { section: target === 'dashboard' ? undefined : target } })
+}
+
+// ── Live dashboard data ──
+const stats = ref<AdminStats | null>(null)
+const feed = ref<AdminBookingRow[]>([])
+
+const statsPoll = usePoll(async () => {
+  const { data } = await api.get<AdminStats>('/booking/admin/stats')
+  stats.value = data
+}, 10_000)
+
+const feedPoll = usePoll(async () => {
+  const { data } = await api.get<{ data: AdminBookingRow[] }>('/booking/admin/bookings', { params: { limit: 12 } })
+  feed.value = data.data
+}, 5_000)
+
+const stale = computed(() => statsPoll.failures.value >= 3 || feedPoll.failures.value >= 3)
+const updatedSeconds = ref(0)
+let clockTimer: number | undefined
+onMounted(() => {
+  clockTimer = window.setInterval(() => {
+    updatedSeconds.value = statsPoll.lastUpdated.value
+      ? Math.round((Date.now() - statsPoll.lastUpdated.value.getTime()) / 1000)
+      : 0
+  }, 1000)
+})
+onUnmounted(() => window.clearInterval(clockTimer))
+
+// ── Bookings data table (cursor-paged) ──
+const bookings = ref<AdminBookingRow[]>([])
+const bookingsCursor = ref<string | null>(null)
+const bookingsBusy = ref(false)
+
+async function loadBookings(reset = false): Promise<void> {
+  bookingsBusy.value = true
+  try {
+    const params: Record<string, string | number> = { limit: 50 }
+    if (!reset && bookingsCursor.value !== null) params.cursor = bookingsCursor.value
+    const { data } = await api.get<{ data: AdminBookingRow[]; next_cursor: string | null }>(
+      '/booking/admin/bookings',
+      { params },
+    )
+    bookings.value = reset ? data.data : [...bookings.value, ...data.data]
+    bookingsCursor.value = data.next_cursor
+  } finally {
+    bookingsBusy.value = false
+  }
+}
+
+watch(section, (s) => {
+  if (s === 'bookings' && bookings.value.length === 0) void loadBookings(true)
+})
+
+// ── Catalog state (venues / events / tickets / manage) ──
 const venues = ref<AdminVenue[]>([])
 const events = ref<EventDetail[]>([])
 const message = ref<string | null>(null)
 const error = ref<string | null>(null)
 const busy = ref(false)
 
-// ── Venue form ──
 const venueForm = ref({ name: '', address: '', city: '', capacity: 100 })
 
-// ── Event form (create + edit share it) ──
 const emptyEvent = { name: '', description: '', type: '', artist: '', status: 'published', date: '', venue_id: '' }
 const eventForm = ref({ ...emptyEvent })
 const editingId = ref<string | null>(null)
 
-// ── Ticket generator ──
 const gen = ref({ event_id: '', rows: 3, seatsPerRow: 10, price: 150, type: 'standard' })
 const generatedCount = computed(() => Math.max(0, gen.value.rows) * Math.max(0, gen.value.seatsPerRow))
 
 onMounted(async () => {
   await Promise.all([loadVenues(), loadEvents()])
+  if (section.value === 'bookings') void loadBookings(true)
 })
 
 async function loadVenues(): Promise<void> {
@@ -108,7 +179,7 @@ function startEdit(event: EventDetail): void {
     date: event.date ? event.date.slice(0, 16) : '',
     venue_id: event.venue?.id ?? '',
   }
-  tab.value = 'events'
+  go('events')
 }
 
 function cancelEdit(): void {
@@ -163,162 +234,261 @@ function formatDate(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
+
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'medium' })
+}
 </script>
 
 <template>
-  <section>
-    <h1>Catalog administration</h1>
-    <p class="muted">Create venues and events, generate seat inventory, and manage the published catalog.</p>
+  <section class="admin-shell">
+    <nav class="admin-rail" aria-label="Admin sections">
+      <span class="rail-title">Admin</span>
+      <button class="rail-link" :class="{ active: section === 'dashboard' }" @click="go('dashboard')">Dashboard</button>
+      <button class="rail-link" :class="{ active: section === 'bookings' }" @click="go('bookings')">Bookings</button>
+      <span class="rail-group">Catalog</span>
+      <button class="rail-link" :class="{ active: section === 'venues' }" @click="go('venues')">Venues</button>
+      <button class="rail-link" :class="{ active: section === 'events' }" @click="go('events')">Events</button>
+      <button class="rail-link" :class="{ active: section === 'tickets' }" @click="go('tickets')">Tickets</button>
+      <button class="rail-link" :class="{ active: section === 'manage' }" @click="go('manage')">Manage</button>
+    </nav>
 
-    <div class="panel" style="position: static; max-width: 760px">
-      <div class="tab-row" role="tablist">
-        <button class="tab" :class="{ active: tab === 'venues' }" role="tab" :aria-selected="tab === 'venues'" @click="tab = 'venues'">Venues</button>
-        <button class="tab" :class="{ active: tab === 'events' }" role="tab" :aria-selected="tab === 'events'" @click="tab = 'events'">Events</button>
-        <button class="tab" :class="{ active: tab === 'tickets' }" role="tab" :aria-selected="tab === 'tickets'" @click="tab = 'tickets'">Tickets</button>
-        <button class="tab" :class="{ active: tab === 'manage' }" role="tab" :aria-selected="tab === 'manage'" @click="tab = 'manage'">Manage</button>
-      </div>
+    <div class="admin-content">
+      <!-- ── Dashboard ── -->
+      <template v-if="section === 'dashboard'">
+        <div class="dash-header">
+          <h1>Sales overview</h1>
+          <span class="live-pill" :class="{ stale }">
+            <span class="live-dot" aria-hidden="true"></span>
+            {{ stale ? 'Stale — retrying' : `Live · updated ${updatedSeconds}s ago` }}
+          </span>
+        </div>
+        <p class="muted">All figures use UTC day boundaries. Revenue counts paid and refund-pending bookings.</p>
 
-      <!-- ── Venues ── -->
-      <form v-if="tab === 'venues'" class="form" @submit.prevent="createVenue">
-        <label>
-          Name
-          <input v-model="venueForm.name" type="text" required maxlength="255" />
-        </label>
-        <label>
-          Address
-          <input v-model="venueForm.address" type="text" required maxlength="255" />
-        </label>
-        <label>
-          City
-          <input v-model="venueForm.city" type="text" required maxlength="128" />
-        </label>
-        <label>
-          Capacity
-          <input v-model.number="venueForm.capacity" type="number" min="1" required />
-        </label>
-        <button class="btn-block" type="submit" :disabled="busy">
-          <span v-if="busy" class="spinner" aria-hidden="true"></span>
-          Create venue
-        </button>
-        <p class="muted" style="font-size: 0.85rem">{{ venues.length }} venues exist.</p>
-      </form>
+        <template v-if="stats">
+          <div class="stat-grid">
+            <StatTile label="Revenue today" :value="formatMoney(stats.totals.revenue_today)" :caption="`${stats.totals.sold_today} tickets sold today`" tone="accent" />
+            <StatTile label="Revenue (7 days)" :value="formatMoney(stats.totals.revenue_7d)" />
+            <StatTile label="Revenue (all time)" :value="formatMoney(stats.totals.revenue_recognized)" :caption="`${stats.totals.tickets_sold} tickets total`" />
+            <StatTile label="Active holds" :value="String(stats.totals.active_holds)" caption="unexpired reservations" />
+            <StatTile label="Refunded" :value="formatMoney(stats.totals.refunded_amount)" :caption="`${stats.totals.refunds_count} refunds`" />
+          </div>
 
-      <!-- ── Events ── -->
-      <form v-else-if="tab === 'events'" class="form" @submit.prevent="submitEvent">
-        <p v-if="editingId" class="muted" style="font-size: 0.85rem">
-          Editing an existing event — <button type="button" class="linklike" @click="cancelEdit">switch back to create</button>
-        </p>
-        <label>
-          Name
-          <input v-model="eventForm.name" type="text" required maxlength="255" />
-        </label>
-        <label>
-          Description
-          <input v-model="eventForm.description" type="text" />
-        </label>
-        <label>
-          Type
-          <input v-model="eventForm.type" type="text" placeholder="show, festival…" maxlength="64" />
-        </label>
-        <label>
-          Artist
-          <input v-model="eventForm.artist" type="text" maxlength="255" />
-        </label>
-        <label>
-          Status
-          <select v-model="eventForm.status" class="select" required>
-            <option value="published">published</option>
-            <option value="draft">draft (hidden from the catalog and this list)</option>
-            <option value="cancelled">cancelled</option>
-          </select>
-        </label>
-        <label>
-          Date
-          <input v-model="eventForm.date" type="datetime-local" required />
-        </label>
-        <label>
-          Venue
-          <select v-model="eventForm.venue_id" class="select" required>
-            <option value="" disabled>Pick a venue…</option>
-            <option v-for="v in venues" :key="v.id" :value="v.id">{{ v.name }} — {{ v.city }}</option>
-          </select>
-        </label>
-        <button class="btn-block" type="submit" :disabled="busy">
-          <span v-if="busy" class="spinner" aria-hidden="true"></span>
-          {{ editingId ? 'Save changes' : 'Create event' }}
-        </button>
-      </form>
+          <div class="dash-grid">
+            <div class="dash-panel">
+              <h2 class="panel-title">Revenue — last 14 days (UTC)</h2>
+              <RevenueChart :series="stats.revenue_by_day" />
+            </div>
 
-      <!-- ── Tickets ── -->
-      <form v-else-if="tab === 'tickets'" class="form" @submit.prevent="generateTickets">
-        <label>
-          Event
-          <select v-model="gen.event_id" class="select" required>
-            <option value="" disabled>Pick an event…</option>
-            <option v-for="e in events" :key="e.id" :value="e.id">{{ e.name }}</option>
-          </select>
-        </label>
-        <label>
-          Rows (A, B, C…)
-          <input v-model.number="gen.rows" type="number" min="1" max="26" required />
-        </label>
-        <label>
-          Seats per row
-          <input v-model.number="gen.seatsPerRow" type="number" min="1" max="100" required />
-        </label>
-        <label>
-          Price per seat
-          <input v-model.number="gen.price" type="number" min="0" step="0.01" required />
-        </label>
-        <label>
-          Ticket type
-          <input v-model="gen.type" type="text" placeholder="standard" maxlength="32" />
-        </label>
-        <button class="btn-block" type="submit" :disabled="busy || !gen.event_id">
-          <span v-if="busy" class="spinner" aria-hidden="true"></span>
-          Generate {{ generatedCount }} tickets
-        </button>
-        <p class="muted" style="font-size: 0.85rem">
-          Seats are labeled A01…{{ String.fromCharCode(64 + Math.max(1, gen.rows)) }}{{ String(Math.max(1, gen.seatsPerRow)).padStart(2, '0') }}.
-          Seat labels must be unique per event — generating twice for the same event fails.
-        </p>
-      </form>
+            <div class="dash-panel">
+              <h2 class="panel-title">Live bookings</h2>
+              <LiveFeed :rows="feed" />
+            </div>
+          </div>
 
-      <!-- ── Manage ── -->
-      <div v-else>
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>Event</th>
-              <th>Date</th>
-              <th>Venue</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="e in events" :key="e.id">
-              <td>{{ e.name }}</td>
-              <td class="muted">{{ formatDate(e.date) }}</td>
-              <td class="muted">{{ e.venue?.name ?? '—' }}</td>
-              <td><span class="status-chip" :class="e.status">{{ e.status }}</span></td>
-              <td class="row-actions">
-                <button type="button" class="linklike" @click="startEdit(e)">Edit</button>
-                <button type="button" class="linklike danger" :disabled="busy" @click="removeEvent(e)">Delete</button>
-              </td>
-            </tr>
-            <tr v-if="events.length === 0">
-              <td colspan="5" class="muted">No published events.</td>
-            </tr>
-          </tbody>
-        </table>
-        <p class="muted" style="font-size: 0.85rem; margin-top: 1rem">
-          Deleting an event with paid or refund-pending bookings is blocked — refund those bookings first.
-        </p>
-      </div>
+          <div class="dash-panel">
+            <h2 class="panel-title">Top events by revenue</h2>
+            <SortableTable
+              :columns="[
+                { key: 'name', label: 'Event', sortable: true },
+                { key: 'sold', label: 'Sold', sortable: true, numeric: true },
+                { key: 'capacity', label: 'Capacity', numeric: true },
+                { key: 'sellthrough', label: 'Sell-through' },
+                { key: 'revenue', label: 'Revenue', sortable: true, numeric: true },
+              ]"
+              :rows="stats.top_events"
+              row-key="event_id"
+              empty="No sales yet."
+            >
+              <template #sellthrough="{ row }">
+                <SellThroughBar :sold="(row as any).sold" :capacity="(row as any).capacity" />
+              </template>
+              <template #revenue="{ row }">{{ formatMoney((row as any).revenue) }}</template>
+            </SortableTable>
+          </div>
+        </template>
+        <p v-else class="muted">Loading sales data…</p>
+      </template>
 
-      <p v-if="message" class="success" style="margin-top: 1rem">{{ message }}</p>
-      <p v-if="error" class="error">{{ error }}</p>
+      <!-- ── Bookings table ── -->
+      <template v-else-if="section === 'bookings'">
+        <h1>Bookings</h1>
+        <p class="muted">Newest first. Sorting applies to the loaded rows.</p>
+        <div class="dash-panel">
+          <SortableTable
+            :columns="[
+              { key: 'created_at', label: 'When', sortable: true },
+              { key: 'event_name', label: 'Event', sortable: true },
+              { key: 'seat', label: 'Seat' },
+              { key: 'email', label: 'Buyer', sortable: true },
+              { key: 'amount', label: 'Amount', sortable: true, numeric: true },
+              { key: 'status', label: 'Status', sortable: true },
+            ]"
+            :rows="bookings"
+            row-key="id"
+            empty="No bookings yet."
+          >
+            <template #created_at="{ row }">{{ formatDateTime((row as any).created_at) }}</template>
+            <template #amount="{ row }">{{ formatMoney((row as any).amount) }}</template>
+            <template #status="{ row }">
+              <span class="status-chip" :class="(row as any).status">{{ (row as any).status }}</span>
+            </template>
+          </SortableTable>
+          <button v-if="bookingsCursor" class="btn-ghost" type="button" :disabled="bookingsBusy" @click="loadBookings()">
+            {{ bookingsBusy ? 'Loading…' : 'Load more' }}
+          </button>
+        </div>
+      </template>
+
+      <!-- ── Catalog sections (forms preserved) ── -->
+      <template v-else>
+        <h1>Catalog administration</h1>
+        <p class="muted">Create venues and events, generate seat inventory, and manage the published catalog.</p>
+
+        <div class="panel" style="position: static; max-width: 760px">
+          <!-- ── Venues ── -->
+          <form v-if="section === 'venues'" class="form" @submit.prevent="createVenue">
+            <label>
+              Name
+              <input v-model="venueForm.name" type="text" required maxlength="255" />
+            </label>
+            <label>
+              Address
+              <input v-model="venueForm.address" type="text" required maxlength="255" />
+            </label>
+            <label>
+              City
+              <input v-model="venueForm.city" type="text" required maxlength="128" />
+            </label>
+            <label>
+              Capacity
+              <input v-model.number="venueForm.capacity" type="number" min="1" required />
+            </label>
+            <button class="btn-block" type="submit" :disabled="busy">
+              <span v-if="busy" class="spinner" aria-hidden="true"></span>
+              Create venue
+            </button>
+            <p class="muted" style="font-size: 0.85rem">{{ venues.length }} venues exist.</p>
+          </form>
+
+          <!-- ── Events ── -->
+          <form v-else-if="section === 'events'" class="form" @submit.prevent="submitEvent">
+            <p v-if="editingId" class="muted" style="font-size: 0.85rem">
+              Editing an existing event — <button type="button" class="linklike" @click="cancelEdit">switch back to create</button>
+            </p>
+            <label>
+              Name
+              <input v-model="eventForm.name" type="text" required maxlength="255" />
+            </label>
+            <label>
+              Description
+              <input v-model="eventForm.description" type="text" />
+            </label>
+            <label>
+              Type
+              <input v-model="eventForm.type" type="text" placeholder="show, festival…" maxlength="64" />
+            </label>
+            <label>
+              Artist
+              <input v-model="eventForm.artist" type="text" maxlength="255" />
+            </label>
+            <label>
+              Status
+              <select v-model="eventForm.status" class="select" required>
+                <option value="published">published</option>
+                <option value="draft">draft (hidden from the catalog and this list)</option>
+                <option value="cancelled">cancelled</option>
+              </select>
+            </label>
+            <label>
+              Date
+              <input v-model="eventForm.date" type="datetime-local" required />
+            </label>
+            <label>
+              Venue
+              <select v-model="eventForm.venue_id" class="select" required>
+                <option value="" disabled>Pick a venue…</option>
+                <option v-for="v in venues" :key="v.id" :value="v.id">{{ v.name }} — {{ v.city }}</option>
+              </select>
+            </label>
+            <button class="btn-block" type="submit" :disabled="busy">
+              <span v-if="busy" class="spinner" aria-hidden="true"></span>
+              {{ editingId ? 'Save changes' : 'Create event' }}
+            </button>
+          </form>
+
+          <!-- ── Tickets ── -->
+          <form v-else-if="section === 'tickets'" class="form" @submit.prevent="generateTickets">
+            <label>
+              Event
+              <select v-model="gen.event_id" class="select" required>
+                <option value="" disabled>Pick an event…</option>
+                <option v-for="e in events" :key="e.id" :value="e.id">{{ e.name }}</option>
+              </select>
+            </label>
+            <label>
+              Rows (A, B, C…)
+              <input v-model.number="gen.rows" type="number" min="1" max="26" required />
+            </label>
+            <label>
+              Seats per row
+              <input v-model.number="gen.seatsPerRow" type="number" min="1" max="100" required />
+            </label>
+            <label>
+              Price per seat
+              <input v-model.number="gen.price" type="number" min="0" step="0.01" required />
+            </label>
+            <label>
+              Ticket type
+              <input v-model="gen.type" type="text" placeholder="standard" maxlength="32" />
+            </label>
+            <button class="btn-block" type="submit" :disabled="busy || !gen.event_id">
+              <span v-if="busy" class="spinner" aria-hidden="true"></span>
+              Generate {{ generatedCount }} tickets
+            </button>
+            <p class="muted" style="font-size: 0.85rem">
+              Seats are labeled A01…{{ String.fromCharCode(64 + Math.max(1, gen.rows)) }}{{ String(Math.max(1, gen.seatsPerRow)).padStart(2, '0') }}.
+              Seat labels must be unique per event — generating twice for the same event fails.
+            </p>
+          </form>
+
+          <!-- ── Manage ── -->
+          <div v-else>
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Event</th>
+                  <th>Date</th>
+                  <th>Venue</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="e in events" :key="e.id">
+                  <td>{{ e.name }}</td>
+                  <td class="muted">{{ formatDate(e.date) }}</td>
+                  <td class="muted">{{ e.venue?.name ?? '—' }}</td>
+                  <td><span class="status-chip" :class="e.status">{{ e.status }}</span></td>
+                  <td class="row-actions">
+                    <button type="button" class="linklike" @click="startEdit(e)">Edit</button>
+                    <button type="button" class="linklike danger" :disabled="busy" @click="removeEvent(e)">Delete</button>
+                  </td>
+                </tr>
+                <tr v-if="events.length === 0">
+                  <td colspan="5" class="muted">No published events.</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="muted" style="font-size: 0.85rem; margin-top: 1rem">
+              Deleting an event with paid or refund-pending bookings is blocked — refund those bookings first.
+            </p>
+          </div>
+
+          <p v-if="message" class="success" style="margin-top: 1rem">{{ message }}</p>
+          <p v-if="error" class="error">{{ error }}</p>
+        </div>
+      </template>
     </div>
   </section>
 </template>
