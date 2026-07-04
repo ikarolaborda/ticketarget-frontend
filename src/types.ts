@@ -4,6 +4,31 @@ export interface Ticket {
   price: string
   type: string
   status: 'available' | 'unavailable' | 'booked'
+  zone_id?: string | null
+}
+
+export interface ZoneGeometry {
+  type: 'rect'
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+export interface EventZone {
+  id: string
+  name: string
+  kind: 'seated' | 'standing'
+  rows: number | null
+  seats_per_row: number | null
+  capacity: number | null
+  total_seats: number
+  color_index: number
+  geometry: ZoneGeometry
+  sort_order: number
+  tickets_total?: number
+  available?: number
+  from_price?: string | null
 }
 
 export interface Venue {

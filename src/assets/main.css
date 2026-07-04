@@ -1081,3 +1081,258 @@ button.theme-toggle:hover:not(:disabled) { border-color: var(--accent); filter: 
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Venue zones ────────────────────────────────────────────────────────── */
+:root {
+  /* Zone category palette — validated (lightness/chroma/CVD/contrast) against
+     --card per theme; labels always render on shapes (never color-alone). */
+  --zone-0: #7c6cf6;
+  --zone-1: #24a789;
+  --zone-2: #b87a26;
+  --zone-3: #cf5f78;
+  --zone-4: #4f8fdd;
+  --zone-5: #8f882a;
+}
+
+[data-theme='light'] {
+  --zone-0: #6a58ee;
+  --zone-1: #0d9b81;
+  --zone-2: #a06a10;
+  --zone-3: #c04a63;
+  --zone-4: #2f6fc4;
+  --zone-5: #8a851c;
+}
+
+.zoned-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(240px, 2fr);
+  gap: var(--space-3);
+  align-items: start;
+  margin-bottom: var(--space-4);
+}
+
+.map-hint {
+  margin-top: -0.4rem;
+  font-size: 0.85rem;
+}
+
+.venue-map {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+}
+
+.map-stage {
+  fill: var(--bg-soft);
+  stroke: var(--border-strong);
+  stroke-width: 0.3;
+}
+
+.map-stage-label {
+  fill: var(--muted);
+  font-size: 3.4px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+
+.zone-shape {
+  fill: var(--border);
+  opacity: 0.85;
+  stroke: var(--card);
+  stroke-width: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+.map-zone.clickable {
+  cursor: pointer;
+}
+
+.map-zone.clickable:hover .zone-shape,
+.map-zone.selected .zone-shape {
+  opacity: 1;
+  stroke: var(--text);
+  stroke-width: 0.7;
+}
+
+.map-zone.sold-out .zone-shape {
+  opacity: 0.45;
+}
+
+.venue-map.editable .map-zone {
+  cursor: grab;
+}
+
+.zone-name {
+  fill: #ffffff;
+  font-size: 3.1px;
+  font-weight: 700;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.45);
+  stroke-width: 0.55;
+}
+
+.zone-sub {
+  fill: #ffffff;
+  font-size: 2.6px;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.45);
+  stroke-width: 0.5;
+}
+
+.map-zone.sold-out .zone-name,
+.map-zone.sold-out .zone-sub {
+  fill: var(--muted);
+  stroke: none;
+}
+
+/* Zone panel */
+.zone-panel {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.zone-row-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: 0.6rem 0.8rem;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.zone-row-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--card-hover);
+}
+
+.zone-row.selected .zone-row-btn {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
+.zone-row-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.zone-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--border);
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.zone-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.zone-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.zone-meta {
+  font-size: 0.78rem;
+}
+
+.zone-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.zone-price {
+  font-weight: 600;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.zone-soldout-chip {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+}
+
+/* Standing quantity picker */
+.standing-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.qty-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border-strong);
+  background: var(--card);
+  color: var(--text);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.qty-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.qty-count {
+  min-width: 2ch;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Admin zone manager */
+.zone-manager {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.zone-editor-map {
+  max-width: 560px;
+}
+
+.zone-form {
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 900px) {
+  .zoned-layout {
+    grid-template-columns: 1fr;
+  }
+}

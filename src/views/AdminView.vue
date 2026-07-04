@@ -9,8 +9,10 @@ import RevenueChart from '@/components/admin/RevenueChart.vue'
 import SellThroughBar from '@/components/admin/SellThroughBar.vue'
 import SortableTable from '@/components/admin/SortableTable.vue'
 import LiveFeed from '@/components/admin/LiveFeed.vue'
+import VenueMap from '@/components/venue/VenueMap.vue'
 import type { AdminBookingRow, AdminStats } from '@/components/admin/types'
 import { formatMoney } from '@/components/admin/types'
+import type { EventZone, ZoneGeometry } from '@/types'
 
 interface AdminVenue {
   id: string
@@ -101,6 +103,131 @@ const editingId = ref<string | null>(null)
 
 const gen = ref({ event_id: '', rows: 3, seatsPerRow: 10, price: 150, type: 'standard' })
 const generatedCount = computed(() => Math.max(0, gen.value.rows) * Math.max(0, gen.value.seatsPerRow))
+
+// ── Venue zone manager ──
+const zoneVenueId = ref('')
+const venueZones = ref<EventZone[]>([])
+const editingZoneId = ref<string | null>(null)
+const emptyZone = { name: '', kind: 'seated', rows: 4, seats_per_row: 10, capacity: 100, color_index: 0, sort_order: 0 }
+const zoneForm = ref({ ...emptyZone })
+
+async function loadZones(): Promise<void> {
+  if (!zoneVenueId.value) return
+  const { data } = await api.get<{ data: EventZone[] }>(`/venues/${zoneVenueId.value}/zones`)
+  venueZones.value = data.data
+}
+
+function zonePayload(geometry: ZoneGeometry): Record<string, unknown> {
+  const seated = zoneForm.value.kind === 'seated'
+  return {
+    name: zoneForm.value.name,
+    kind: zoneForm.value.kind,
+    rows: seated ? zoneForm.value.rows : null,
+    seats_per_row: seated ? zoneForm.value.seats_per_row : null,
+    capacity: seated ? null : zoneForm.value.capacity,
+    color_index: zoneForm.value.color_index,
+    geometry,
+    sort_order: zoneForm.value.sort_order,
+  }
+}
+
+async function submitZone(): Promise<void> {
+  await run(async () => {
+    if (editingZoneId.value) {
+      const existing = venueZones.value.find((z) => z.id === editingZoneId.value)
+      await api.put(
+        `/venues/${zoneVenueId.value}/zones/${editingZoneId.value}`,
+        zonePayload(existing?.geometry ?? defaultGeometry()),
+      )
+      cancelZoneEdit()
+      await loadZones()
+      return 'Zone updated.'
+    }
+
+    await api.post(`/venues/${zoneVenueId.value}/zones`, zonePayload(defaultGeometry()))
+    zoneForm.value = { ...emptyZone }
+    await loadZones()
+    return 'Zone created — drag it into position on the preview.'
+  })
+}
+
+// New zones stagger down the canvas so they never stack invisibly.
+function defaultGeometry(): ZoneGeometry {
+  const n = venueZones.value.length
+  return { type: 'rect', x: 10 + (n % 3) * 28, y: 14 + Math.floor(n / 3) * 18, w: 24, h: 14 }
+}
+
+function startZoneEdit(zone: EventZone): void {
+  editingZoneId.value = zone.id
+  zoneForm.value = {
+    name: zone.name,
+    kind: zone.kind,
+    rows: zone.rows ?? 4,
+    seats_per_row: zone.seats_per_row ?? 10,
+    capacity: zone.capacity ?? 100,
+    color_index: zone.color_index,
+    sort_order: zone.sort_order,
+  }
+}
+
+function cancelZoneEdit(): void {
+  editingZoneId.value = null
+  zoneForm.value = { ...emptyZone }
+}
+
+async function removeZone(zone: EventZone): Promise<void> {
+  if (!window.confirm(`Delete zone "${zone.name}"?`)) return
+  await run(async () => {
+    await api.delete(`/venues/${zoneVenueId.value}/zones/${zone.id}`)
+    await loadZones()
+    return `Zone "${zone.name}" deleted.`
+  })
+}
+
+function onZoneMove(zoneId: string, geometry: ZoneGeometry): void {
+  const zone = venueZones.value.find((z) => z.id === zoneId)
+  if (zone) zone.geometry = geometry
+}
+
+async function onZoneMoveEnd(zoneId: string): Promise<void> {
+  const zone = venueZones.value.find((z) => z.id === zoneId)
+  if (!zone) return
+  const seated = zone.kind === 'seated'
+  await api.put(`/venues/${zoneVenueId.value}/zones/${zoneId}`, {
+    name: zone.name,
+    kind: zone.kind,
+    rows: seated ? zone.rows : null,
+    seats_per_row: seated ? zone.seats_per_row : null,
+    capacity: seated ? null : zone.capacity,
+    color_index: zone.color_index,
+    geometry: zone.geometry,
+    sort_order: zone.sort_order,
+  })
+}
+
+// ── Zone-based ticket generation ──
+const genMode = ref<'rows' | 'zone'>('rows')
+const genZone = ref({ zone_id: '', price: 150, type: 'standard' })
+const genEventZones = ref<EventZone[]>([])
+
+async function loadEventZones(): Promise<void> {
+  genEventZones.value = []
+  genZone.value.zone_id = ''
+  const event = events.value.find((e) => e.id === gen.value.event_id)
+  if (!event?.venue?.id) return
+  const { data } = await api.get<{ data: EventZone[] }>(`/venues/${event.venue.id}/zones`)
+  genEventZones.value = data.data
+}
+
+async function generateZoneTickets(): Promise<void> {
+  await run(async () => {
+    const { data } = await api.post<{ created: number }>(
+      `/events/${gen.value.event_id}/zones/${genZone.value.zone_id}/tickets`,
+      { price: genZone.value.price, type: genZone.value.type || 'standard' },
+    )
+    return `${data.created} tickets created for the zone.`
+  })
+}
 
 onMounted(async () => {
   await Promise.all([loadVenues(), loadEvents()])
@@ -371,6 +498,90 @@ function formatDateTime(iso: string): string {
             <p class="muted" style="font-size: 0.85rem">{{ venues.length }} venues exist.</p>
           </form>
 
+          <div v-if="section === 'venues'" class="zone-manager">
+            <h2 class="panel-title">Venue layout (zones)</h2>
+            <label>
+              Venue
+              <select v-model="zoneVenueId" class="select" @change="loadZones">
+                <option value="" disabled>Pick a venue…</option>
+                <option v-for="v in venues" :key="v.id" :value="v.id">{{ v.name }} — {{ v.city }}</option>
+              </select>
+            </label>
+
+            <template v-if="zoneVenueId">
+              <p class="muted" style="font-size: 0.85rem">
+                Drag zones on the preview to match the physical layout. Buyers see this exact map.
+              </p>
+              <VenueMap
+                :zones="venueZones"
+                editable
+                class="zone-editor-map"
+                @move="onZoneMove"
+                @moveend="onZoneMoveEnd"
+              />
+
+              <form class="form zone-form" @submit.prevent="submitZone">
+                <p v-if="editingZoneId" class="muted" style="font-size: 0.85rem">
+                  Editing zone — <button type="button" class="linklike" @click="cancelZoneEdit">switch back to create</button>
+                </p>
+                <label>
+                  Zone name
+                  <input v-model="zoneForm.name" type="text" required maxlength="64" />
+                </label>
+                <label>
+                  Kind
+                  <select v-model="zoneForm.kind" class="select">
+                    <option value="seated">Seated (numbered)</option>
+                    <option value="standing">Standing (capacity)</option>
+                  </select>
+                </label>
+                <template v-if="zoneForm.kind === 'seated'">
+                  <label>
+                    Rows
+                    <input v-model.number="zoneForm.rows" type="number" min="1" max="99" required />
+                  </label>
+                  <label>
+                    Seats per row
+                    <input v-model.number="zoneForm.seats_per_row" type="number" min="1" max="200" required />
+                  </label>
+                </template>
+                <label v-else>
+                  Capacity
+                  <input v-model.number="zoneForm.capacity" type="number" min="1" max="100000" required />
+                </label>
+                <label>
+                  Color
+                  <select v-model.number="zoneForm.color_index" class="select">
+                    <option v-for="n in 6" :key="n" :value="n - 1">Category {{ n }}</option>
+                  </select>
+                </label>
+                <button class="btn-block" type="submit" :disabled="busy">
+                  {{ editingZoneId ? 'Save zone' : 'Add zone' }}
+                </button>
+              </form>
+
+              <table v-if="venueZones.length > 0" class="admin-table">
+                <thead>
+                  <tr><th>Zone</th><th>Kind</th><th>Seats</th><th></th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="z in venueZones" :key="z.id">
+                    <td>
+                      <span class="zone-swatch" :style="{ background: `var(--zone-${z.color_index % 6})` }" aria-hidden="true"></span>
+                      {{ z.name }}
+                    </td>
+                    <td class="muted">{{ z.kind }}</td>
+                    <td class="muted">{{ z.total_seats }}</td>
+                    <td class="row-actions">
+                      <button type="button" class="linklike" @click="startZoneEdit(z)">Edit</button>
+                      <button type="button" class="linklike danger" :disabled="busy" @click="removeZone(z)">Delete</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </template>
+          </div>
+
           <!-- ── Events ── -->
           <form v-else-if="section === 'events'" class="form" @submit.prevent="submitEvent">
             <p v-if="editingId" class="muted" style="font-size: 0.85rem">
@@ -418,14 +629,50 @@ function formatDateTime(iso: string): string {
           </form>
 
           <!-- ── Tickets ── -->
-          <form v-else-if="section === 'tickets'" class="form" @submit.prevent="generateTickets">
+          <form v-else-if="section === 'tickets'" class="form" @submit.prevent="genMode === 'zone' ? generateZoneTickets() : generateTickets()">
+            <label>
+              Mode
+              <select v-model="genMode" class="select">
+                <option value="rows">Simple rows (no zones)</option>
+                <option value="zone">Venue zone</option>
+              </select>
+            </label>
             <label>
               Event
-              <select v-model="gen.event_id" class="select" required>
+              <select v-model="gen.event_id" class="select" required @change="genMode === 'zone' ? loadEventZones() : undefined">
                 <option value="" disabled>Pick an event…</option>
                 <option v-for="e in events" :key="e.id" :value="e.id">{{ e.name }}</option>
               </select>
             </label>
+            <template v-if="genMode === 'zone'">
+              <label>
+                Zone
+                <select v-model="genZone.zone_id" class="select" required>
+                  <option value="" disabled>
+                    {{ genEventZones.length === 0 ? 'No zones on this venue — define them under Venues' : 'Pick a zone…' }}
+                  </option>
+                  <option v-for="z in genEventZones" :key="z.id" :value="z.id">
+                    {{ z.name }} ({{ z.total_seats }} {{ z.kind === 'seated' ? 'seats' : 'standing' }})
+                  </option>
+                </select>
+              </label>
+              <label>
+                Price per ticket
+                <input v-model.number="genZone.price" type="number" min="0" step="0.01" required />
+              </label>
+              <label>
+                Ticket type
+                <input v-model="genZone.type" type="text" placeholder="standard" maxlength="32" />
+              </label>
+              <button class="btn-block" type="submit" :disabled="busy || !genZone.zone_id">
+                <span v-if="busy" class="spinner" aria-hidden="true"></span>
+                Generate zone tickets
+              </button>
+              <p class="muted" style="font-size: 0.85rem">
+                Each zone can be generated once per event; seat labels carry the zone prefix.
+              </p>
+            </template>
+            <template v-else>
             <label>
               Rows (A, B, C…)
               <input v-model.number="gen.rows" type="number" min="1" max="26" required />
@@ -450,6 +697,7 @@ function formatDateTime(iso: string): string {
               Seats are labeled A01…{{ String.fromCharCode(64 + Math.max(1, gen.rows)) }}{{ String(Math.max(1, gen.seatsPerRow)).padStart(2, '0') }}.
               Seat labels must be unique per event — generating twice for the same event fails.
             </p>
+            </template>
           </form>
 
           <!-- ── Manage ── -->
