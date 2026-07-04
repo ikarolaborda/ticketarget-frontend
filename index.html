@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ticketarget</title>
     <script>
+      // Restore the cached brand title before first paint (first-ever visit
+      // still shows the stock name for one request — no SSR).
+      ;(function () {
+        try {
+          var name = localStorage.getItem('ticketarget.brand.name')
+          if (name) document.title = name
+        } catch (e) {}
+      })()
       // Set the theme before first paint so the page never flashes the wrong one.
       ;(function () {
         var theme

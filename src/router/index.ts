@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { tokenIsAdmin } from '@/lib/jwt'
 
 export const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', name: 'browse', component: () => import('@/views/BrowseView.vue') },
     { path: '/events/:id', name: 'event', component: () => import('@/views/EventView.vue'), props: true },

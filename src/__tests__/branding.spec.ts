@@ -93,6 +93,31 @@ describe('loadBranding', () => {
     expect(branding.name).toBe(DEFAULT_BRANDING.name)
   })
 
+  it('caches the brand name for the pre-mount title bootstrap', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ name: 'Aurora Tickets' }) }),
+    )
+
+    await loadBranding()
+
+    expect(localStorage.getItem('ticketarget.brand.name')).toBe('Aurora Tickets')
+  })
+
+  it('fetches branding relative to the configured base path', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 404 })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await loadBranding()
+
+    // Under the default base this is /branding.json; a VITE_BASE build
+    // statically rewrites import.meta.env.BASE_URL and the path follows.
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${import.meta.env.BASE_URL}branding.json`,
+      expect.objectContaining({ cache: 'no-store' }),
+    )
+  })
+
   it('applies a mounted brand file end to end with no-store semantics', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

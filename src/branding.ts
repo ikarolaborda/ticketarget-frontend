@@ -125,6 +125,15 @@ export function applyBranding(config: BrandingConfig, root: HTMLElement = docume
   root.dataset.glass = config.style.glass ? 'on' : 'off'
 
   document.title = config.name
+
+  // The pre-mount script in index.html reads this on the NEXT load, so the
+  // title never flashes the stock name after the first visit.
+  try {
+    localStorage.setItem('ticketarget.brand.name', config.name)
+  } catch {
+    // private mode: title bootstrap stays best-effort
+  }
+
   warnOnLowContrast(config)
 }
 
@@ -135,7 +144,7 @@ export async function loadBranding(): Promise<void> {
   try {
     // no-store: a deployer swapping the mounted file must win over caches,
     // or the zero-rebuild promise silently breaks.
-    const response = await fetch('/branding.json', { cache: 'no-store', signal: controller.signal })
+    const response = await fetch(`${import.meta.env.BASE_URL}branding.json`, { cache: 'no-store', signal: controller.signal })
     if (!response.ok) throw new Error(`branding.json ${response.status}`)
     applyBranding(mergeBranding(await response.json()))
   } catch {
