@@ -28,9 +28,10 @@
      saturated gradient art, not on the page background. */
   --chip-bg: rgba(11, 13, 18, 0.72);
   --chip-text: #eef0f6;
-  --radius-s: 8px;
-  --radius-m: 12px;
-  --radius-l: 16px;
+  --radius-s: 0px;
+  --radius-m: 0px;
+  --radius-l: 0px;
+  --radius-pill: 0px;
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-2: 0 10px 30px rgba(0, 0, 0, 0.45);
   --space-1: 0.25rem;
@@ -150,7 +151,7 @@ a { color: var(--accent-strong); }
   font-size: 0.92rem;
   padding: 0.45rem 0.9rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--card);
   transition: border-color 0.15s ease, background 0.15s ease;
 }
@@ -163,7 +164,7 @@ a { color: var(--accent-strong); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent);
   color: white;
   font-size: 0.75rem;
@@ -191,7 +192,7 @@ a { color: var(--accent-strong); }
 .search {
   width: 100%;
   padding: 0.95rem 1.1rem 0.95rem 2.75rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--border-strong);
   background: var(--card);
   color: var(--text);
@@ -287,7 +288,7 @@ a { color: var(--accent-strong); }
   font-size: 0.75rem;
   font-weight: 650;
   padding: 0.25rem 0.6rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .card-body { padding: 0.9rem 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.15rem; flex: 1; }
@@ -379,7 +380,7 @@ a { color: var(--accent-strong); }
   font-weight: 700;
   letter-spacing: 0.35em;
   color: var(--muted);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: linear-gradient(180deg, var(--accent-soft), transparent);
   border: 1px solid var(--border);
 }
@@ -521,7 +522,7 @@ a { color: var(--accent-strong); }
   background: var(--teal-soft);
   border: 1px solid var(--teal-border);
   padding: 0.3rem 0.75rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 0.9rem;
 }
 .countdown.low { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-border); }
@@ -644,7 +645,7 @@ button.tab.active { background: var(--accent-soft); border-color: var(--accent);
 .qr-row { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-3); }
 .qr-box { background: white; padding: 6px; border-radius: var(--radius-s); line-height: 0; flex-shrink: 0; }
 
-.status-chip { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.6rem; border-radius: 999px; }
+.status-chip { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.6rem; border-radius: var(--radius-pill); }
 .status-chip.refunded { background: var(--danger-soft); color: var(--danger); }
 .status-chip.refund_pending { background: var(--teal-soft); color: var(--teal); }
 .status-chip.published { background: var(--ok-soft); color: var(--ok); }
@@ -661,7 +662,7 @@ button.theme-toggle {
   justify-content: center;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 0.95rem;
   line-height: 1;
 }
@@ -782,7 +783,7 @@ button.theme-toggle:hover:not(:disabled) { border-color: var(--accent); filter: 
   font-size: 0.8rem;
   color: var(--muted);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.3rem 0.75rem;
   background: var(--card);
 }
@@ -944,7 +945,7 @@ button.theme-toggle:hover:not(:disabled) { border-color: var(--accent); filter: 
 .sellthrough-track {
   flex: 1;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--bg-soft);
   border: 1px solid var(--border);
   overflow: hidden;
@@ -952,7 +953,7 @@ button.theme-toggle:hover:not(:disabled) { border-color: var(--accent); filter: 
 
 .sellthrough-fill {
   height: 100%;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--chart-2);
 }
 
@@ -1277,7 +1278,7 @@ button.theme-toggle:hover:not(:disabled) { border-color: var(--accent); filter: 
   letter-spacing: 0.05em;
   color: var(--danger);
   border: 1px solid var(--danger-border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.15rem 0.5rem;
 }
 
@@ -1335,4 +1336,88 @@ button.theme-toggle:hover:not(:disabled) { border-color: var(--accent); filter: 
   .zoned-layout {
     grid-template-columns: 1fr;
   }
+}
+
+/* ─── Whitelabel branding bridge + square glass ──────────────────────────── */
+/* The loader (src/branding.ts) sets --brand-* plus data-radius / data-glass
+   on <html>. Two brand colors per theme rebrand every derived tint below;
+   browsers without color-mix() keep the static tokens declared above. */
+
+:root {
+  --accent: var(--brand-accent-dark, #7c6cf6);
+  --teal: var(--brand-accent-2-dark, #37d3b2);
+  /* Charts: slot 1 follows the brand; slots 2-5 stay the validated
+     platform palette (see docs/WHITELABEL.md). */
+  --chart-1: var(--accent);
+  --zone-0: var(--accent);
+  /* Near-opaque backing for data surfaces (charts, venue maps) so glass
+     never degrades data readability. */
+  --surface-data: var(--card);
+}
+
+[data-theme='light'] {
+  --accent: var(--brand-accent-light, #6a58ee);
+  --teal: var(--brand-accent-2-light, #0d9b81);
+}
+
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  :root {
+    --accent-2: color-mix(in srgb, var(--accent) 88%, #101020);
+    --accent-strong: color-mix(in srgb, var(--accent) 68%, #ffffff);
+    --accent-soft: color-mix(in srgb, var(--accent) 13%, transparent);
+    --teal-soft: color-mix(in srgb, var(--teal) 12%, transparent);
+    --teal-border: color-mix(in srgb, var(--teal) 35%, transparent);
+    --glow-a: color-mix(in srgb, var(--accent) 17%, transparent);
+    --glow-b: color-mix(in srgb, var(--teal) 9%, transparent);
+  }
+
+  [data-theme='light'] {
+    --accent-2: color-mix(in srgb, var(--accent) 85%, #101020);
+    --accent-strong: color-mix(in srgb, var(--accent) 82%, #101020);
+    --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+    --glow-a: color-mix(in srgb, var(--accent) 11%, transparent);
+    --glow-b: color-mix(in srgb, var(--teal) 8%, transparent);
+  }
+}
+
+/* Rounded escape hatch for whitelabel deployments that want the old look. */
+[data-radius='rounded'] {
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 16px;
+  --radius-pill: 999px;
+}
+
+/* Glass surfaces: UI chrome only — data surfaces keep --surface-data. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  [data-glass='on'] .panel,
+  [data-glass='on'] .card,
+  [data-glass='on'] .stat-tile,
+  [data-glass='on'] .dash-panel,
+  [data-glass='on'] .admin-rail,
+  [data-glass='on'] .zone-row-btn,
+  [data-glass='on'] .live-pill,
+  [data-glass='on'] .waiting {
+    background: color-mix(in srgb, var(--card) 58%, transparent);
+    backdrop-filter: blur(18px) saturate(1.35);
+    -webkit-backdrop-filter: blur(18px) saturate(1.35);
+    border-color: color-mix(in srgb, var(--text) 9%, transparent);
+  }
+
+  /* Charts, feeds and tables need a calmer backdrop: higher opacity glass. */
+  [data-glass='on'] .dash-panel {
+    background: color-mix(in srgb, var(--card) 80%, transparent);
+  }
+
+  [data-glass='on'] .topbar {
+    background: color-mix(in srgb, var(--bg) 62%, transparent);
+    backdrop-filter: blur(18px) saturate(1.35);
+    -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  }
+}
+
+/* Data surfaces stay near-opaque regardless of the glass setting. */
+.venue-map,
+.chart-wrap {
+  background: var(--surface-data);
 }

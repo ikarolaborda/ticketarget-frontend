@@ -1,0 +1,13 @@
+{
+  "name": "Ticketarget",
+  "initial": "T",
+  "tagline": "a high-availability ticketing reference build. Payments run in Stripe test mode.",
+  "colors": {
+    "dark": { "accent": "#7c6cf6", "accentSecondary": "#37d3b2" },
+    "light": { "accent": "#6a58ee", "accentSecondary": "#0d9b81" }
+  },
+  "style": {
+    "radius": "square",
+    "glass": true
+  }
+}

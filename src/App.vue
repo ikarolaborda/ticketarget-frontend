@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { branding } from '@/branding'
 import { RouterLink, RouterView } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBookingStore } from '@/stores/booking'
@@ -13,8 +14,8 @@ void auth.restore()
 <template>
   <header class="topbar">
     <RouterLink to="/" class="brand">
-      <span class="brand-mark" aria-hidden="true">T</span>
-      Ticketarget
+      <span class="brand-mark" aria-hidden="true">{{ branding.initial }}</span>
+      {{ branding.name }}
     </RouterLink>
     <nav class="top-actions">
       <template v-if="auth.user">
@@ -44,6 +45,6 @@ void auth.restore()
     <RouterView />
   </main>
   <footer class="footer">
-    Ticketarget — a high-availability ticketing reference build. Payments run in Stripe test mode.
+    {{ branding.name }} — {{ branding.tagline }}
   </footer>
 </template>
