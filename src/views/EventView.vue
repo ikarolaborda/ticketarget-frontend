@@ -60,7 +60,42 @@ onMounted(async () => {
   await catalog.loadEvent(props.id)
   const { data } = await api.get<{ data: EventZone[] }>(`/events/${props.id}/zones`)
   zones.value = data.data
+  await applyBookingAvailability()
 })
+
+// Booking owns seat availability since the inventory cutover: the catalog
+// payload carries static seat identity, and live statuses are merged in from
+// booking. If the availability call fails we degrade to the catalog snapshot
+// rather than blanking the map.
+async function applyBookingAvailability(): Promise<void> {
+  try {
+    const { data } = await api.get<{
+      data: {
+        tickets: Record<string, string>
+        zones: { zone_id: string | null; available: number; from_price: string | null }[]
+      }
+    }>(`/booking/availability/${props.id}`)
+
+    if (current.value?.tickets) {
+      for (const ticket of current.value.tickets) {
+        const status = data.data.tickets[ticket.id]
+        if (status) ticket.status = status as typeof ticket.status
+      }
+    }
+
+    const aggregates = new Map(
+      data.data.zones.filter((z) => z.zone_id !== null).map((z) => [z.zone_id as string, z]),
+    )
+    zones.value = zones.value.map((zone) => {
+      const agg = aggregates.get(zone.id)
+      return agg
+        ? { ...zone, available: agg.available, from_price: agg.from_price ?? zone.from_price }
+        : zone
+    })
+  } catch {
+    // Catalog statuses remain on screen; reserve is still the arbiter.
+  }
+}
 
 // Navigating away abandons the waiting room; no timers may keep retrying.
 onBeforeUnmount(() => booking.cancelQueueWait())
